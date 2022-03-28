@@ -1,0 +1,65 @@
+.miidea_svg {
+  background-color: white;
+}
+
+.rotated {
+  position: absolute;
+  bottom: 0px;
+  transform-origin: 0% 100%;
+  transform: rotate(-90deg) translateY(100%);
+}
+
+.note_label {
+  font-weight: bold;
+  fill: #EEEEEE;
+}
+
+.C_marker {
+  font-size: 15;
+  font-weight: bold;
+  fill: black;
+}
+
+.key_line {
+  opacity: 0;
+}
+
+.in_scale {
+  fill: #8ff76f;
+  opacity: 0.3;
+}
+
+.out_of_scale {
+  fill: black;
+  opacity: 0.3;
+}
+
+.harmony_line {
+  opacity: 0;
+  fill: red;
+}
+.third {
+  opacity: 0.4;
+}
+.fifth {
+  opacity: 0.6;
+}
+.octave {
+  opacity: 0.8;
+}
+
+.thirdNote rect, .thirdNote circle {
+  stroke: red;
+  stroke-width: 2;
+  stroke-opacity: 0.4;
+}
+.fifthNote rect, .fifthNote circle {
+  stroke: red;
+  stroke-width: 2;
+  stroke-opacity: 0.6;
+}
+.octaveNote rect, .octaveNote circle{
+  stroke: red;
+  stroke-width: 2;
+  stroke-opacity: 0.8;
+}
