@@ -2,7 +2,7 @@ let debug_text = '';
 
 // OPTIONS (GUI to-do)
 
-const options = ['Show Key', 'Hover-Harmonies', 'Color'];
+const options = ['Show Key', 'Hover-Harmonies', 'Color', 'Chords'];
 const bars = 3;
 const width = 1000;
 const height = 500;
@@ -132,39 +132,6 @@ class MiideaCanvas {
     this.s.half_octave_range = [7, 10];
   }
 
-  infer_params(always_render_notes=false) {
-    debug_text += ' infer_params ';
-    // Infers the domains (time domain in 1/64 bars and the note domain in notes)
-    // the time domain fits the # of bars with notes in them
-    // the note domain fits based on the notes, in half octaves so it doesn't always change
-    //const inferred_bars = this.notes.length === 0 ? 1 : Math.floor(Math.max(...this.notes.map(n => n.start))/64)+1;
-    const inferred_bars = bars; // NOT INFERRING, JUST SETTING IT
-    let inferred_hoct_range = this.s.half_octave_range; // default for if there are no notes
-    if (this.notes.length > 0) {
-      let note_vals = this.notes.map(n => n.note);
-      //console.log(note_vals, Math.min(...note_vals)-21);
-      inferred_hoct_range = [Math.floor((Math.min(...note_vals)-21)/6), 
-                                   Math.ceil((Math.max(...note_vals)-21)/6)];
-    }
-    // if the layout has changed, we'll re-render
-    //console.log('1', inferred_hoct_range);
-    if (always_render_notes || inferred_bars != this.s.bars || 
-        inferred_hoct_range[0] != this.s.half_octave_range[0] || 
-        inferred_hoct_range[1] != this.s.half_octave_range[1]) {
-      //console.log('2');
-      this.s.bars = inferred_bars;
-      this.s.time_domain = [0, 64*this.s.bars];
-      this.s.half_octave_range = inferred_hoct_range;
-      this.s.note_domain = [this.s.half_octave_range[0]*6+18, 
-                            this.s.half_octave_range[1]*6+21];
-      //console.log(this.s.bars, this.s.half_octave_range);
-      //console.log(this.s.time_domain, this.s.note_domain);
-
-      this.render_all()
-    }
-    // no action if it didn't change the layout
-  }
-
   render_base_layer() {
     debug_text += ' render_base_layer ';
     // "Staff" lines to delineate note positions
@@ -244,76 +211,93 @@ class MiideaCanvas {
     this.svg.selectAll('.note').remove();
     this.svg.selectAll('.note')
       .data(this.notes)
-      .join('g')
-        .attr('class', 'note notation_element')
-        .on('mouseover', (event, d) => {
-          if (this.p.hover_harms) {
-            d3.selectAll('.harmony_line')
-              .classed('third', td => (td - d.note == 4 || d.note - td == 8))
-              .classed('fifth', td => (td - d.note == 7 || d.note - td == 5))
-              .classed('octave', td => (td - d.note == 12 || d.note - td == 12 || td - d.note == 0));
-            d3.selectAll('.note')
-              .classed('thirdNote', td => (td.note - d.note == 4 || d.note - td.note == 8))
-              .classed('fifthNote', td => (td.note - d.note == 7 || d.note - td.note == 5))
-              .classed('octaveNote', td => (td.note - d.note == 12 || d.note - td.note == 12 || td.note - d.note == 0));
-          }
-        })
-        .on('mouseout', () => {
-          d3.selectAll('.harmony_line').attr('class', 'harmony_line notation_element');
-          d3.selectAll('.note').attr('class', 'note notation_element');
-        })
-        .style('fill', d => {
-          if (!this.p.color) return '#333333';
-          const note_name = get_note_name(d.note);
-          const color_result = note_colors[note_name[0]];
-          if (note_name.length == 1) {
-            return color_result;
+      .join(
+        enter => {
+          let outer = enter.append('g')
+            .attr('class', 'note notation_element')
+            .on('mouseover', (event, d) => {
+              if (this.p.hover_harms) {
+                d3.selectAll('.harmony_line')
+                  .classed('third', td => (td - d.note == 4 || d.note - td == 8))
+                  .classed('fifth', td => (td - d.note == 7 || d.note - td == 5))
+                  .classed('octave', td => (td - d.note == 12 || d.note - td == 12 || td - d.note == 0));
+                d3.selectAll('.note')
+                  .classed('thirdNote', td => (td.note - d.note == 4 || d.note - td.note == 8))
+                  .classed('fifthNote', td => (td.note - d.note == 7 || d.note - td.note == 5))
+                  .classed('octaveNote', td => (td.note - d.note == 12 || d.note - td.note == 12 || td.note - d.note == 0));
+              }
+            })
+            .on('mouseout', () => {
+              d3.selectAll('.harmony_line').attr('class', 'harmony_line notation_element');
+              d3.selectAll('.note').attr('class', 'note notation_element');
+            })
+            .style('fill', d => {
+              if (!this.p.color) return '#333333';
+              const note_name = get_note_name(d.note);
+              const color_result = note_colors[note_name[0]];
+              if (note_name.length == 1) {
+                return color_result;
+              } else {
+                return 'url(#hatch-'+note_name[0]+')';
+              }
+            })
+            //.call(drag)
+          if (this.p.note_exp) {
+            outer.append('rect')
+              .attr('x', d => d.noteLen > 4 ? this.s.time_scale(d.start) + this.s.note_size/2 : this.s.time_scale(d.start))
+              .attr('y', d => d.noteLen >= 8 ? this.s.note_scale(d.note+1)+this.s.note_size/3 : this.s.note_scale(d.note+1)+1)
+              .attr('width', d => d.noteLen > 4 ?  this.s.time_scale(d.end)-this.s.time_scale(d.start)-this.s.note_size/2 : this.s.time_scale(d.end)-this.s.time_scale(d.start)-1)
+              .attr('height', d => d.noteLen >= 8 ? this.s.note_size/3 : this.s.note_size-2)
+              .attr('rx', d => d.noteLen == 4 || d.noteLen == 2 ? '50%' : 5)
+              .attr('ry', d => d.noteLen == 4 ? 1 : d.noteLen == 2 ? '50%' : 0)
+                
+            outer.append('circle')
+              .attr('cx', d => this.s.time_scale(d.start)+this.s.note_size/2)
+              .attr('cy', d => this.s.note_scale(d.note+0.5))
+              .attr('r', d => d.noteLen > 4 ? this.s.note_size/2 : 0);
           } else {
-            return 'url(#hatch-'+note_name[0]+')';
+            let curr_time = this.s.time_scale(this.get_bars_time(performance.now()));
+            outer.append('rect')
+              .attr('x', d => this.s.time_scale(d.start))
+              .attr('y', d => this.s.note_scale(d.note+1)+1)
+              .attr('width', d => this.s.time_scale(d.end)-this.s.time_scale(d.start)-1)
+              .attr('height', d => this.s.note_size-2);
           }
-        });
-        //.call(drag)
-
-    if (this.p.note_exp) {
-      this.svg.selectAll('.note').append('rect')
-        .attr('x', d => d.noteLen > 4 ? this.s.time_scale(d.start) + this.s.note_size/2 : this.s.time_scale(d.start))
-        .attr('y', d => d.noteLen >= 8 ? this.s.note_scale(d.note+1)+this.s.note_size/3 : this.s.note_scale(d.note+1)+1)
-        .attr('width', d => d.noteLen > 4 ?  this.s.time_scale(d.end)-this.s.time_scale(d.start)-this.s.note_size/2 : this.s.time_scale(d.end)-this.s.time_scale(d.start)-1)
-        .attr('height', d => d.noteLen >= 8 ? this.s.note_size/3 : this.s.note_size-2)
-        .attr('rx', d => d.noteLen == 4 || d.noteLen == 2 ? '50%' : 5)
-        .attr('ry', d => d.noteLen == 4 ? 1 : d.noteLen == 2 ? '50%' : 0)
-  
-      this.svg.selectAll('.note').append('circle')
-        .attr('cx', d => this.s.time_scale(d.start)+this.s.note_size/2)
-        .attr('cy', d => this.s.note_scale(d.note+0.5))
-        .attr('r', d => d.noteLen > 4 ? this.s.note_size/2 : 0);
-
-    } else {
-      let curr_time = this.s.time_scale(this.get_bars_time(performance.now()));
-      this.svg.selectAll('.note').append('rect')
-        .attr('x', d => this.s.time_scale(d.start))
-        .attr('y', d => this.s.note_scale(d.note+1)+1)
-        .attr('width', (d) => {
-          if (d.noteLen == -1) {
-            //console.log('aaa', curr_time);
-            return curr_time-this.s.time_scale(d.start)-1;
+          outer.append('text')
+            .attr('class', 'note_label')
+            .attr('x', d => this.s.time_scale(d.start)+this.s.note_size/5)
+            .attr('y', d => this.s.note_scale(d.note+0.5)+1)
+            .attr('dominant-baseline', 'middle')
+            .attr('letter-spacing', -1)
+            .style('font-size', 3*this.s.note_size/4)
+            .html(d => (this.s.note_size < this.s.time_scale(d.noteLen)-this.s.time_scale(0)) ? get_note_name(d.note) : '');
+          
+          return outer;
+        },
+        update => {
+          if (this.p.note_exp) {
+            update.select('rect')
+              .attr('x', d => d.noteLen > 4 ? this.s.time_scale(d.start) + this.s.note_size/2 : this.s.time_scale(d.start))
+              .attr('y', d => d.noteLen >= 8 ? this.s.note_scale(d.note+1)+this.s.note_size/3 : this.s.note_scale(d.note+1)+1)
+              .attr('width', d => d.noteLen > 4 ?  this.s.time_scale(d.end)-this.s.time_scale(d.start)-this.s.note_size/2 : this.s.time_scale(d.end)-this.s.time_scale(d.start)-1)
+              .attr('height', d => d.noteLen >= 8 ? this.s.note_size/3 : this.s.note_size-2)
+              .attr('rx', d => d.noteLen == 4 || d.noteLen == 2 ? '50%' : 5)
+              .attr('ry', d => d.noteLen == 4 ? 1 : d.noteLen == 2 ? '50%' : 0)
+                
+            update.select('circle')
+              .attr('r', d => d.noteLen > 4 ? this.s.note_size/2 : 0);
           } else {
-            return this.s.time_scale(d.end)-this.s.time_scale(d.start)-1;
+            let curr_time = this.s.time_scale(this.get_bars_time(performance.now()));
+            update.select('rect')
+              .attr('width', d => this.s.time_scale(d.end)-this.s.time_scale(d.start)-1);
           }
-        })
-        .attr('height', d => this.s.note_size-2);
-    }
-    this.svg.selectAll('.note').append('text')
-      .attr('class', 'note_label')
-      .attr('x', d => this.s.time_scale(d.start)+this.s.note_size/5)
-      .attr('y', d => this.s.note_scale(d.note+0.5)+1)
-      .attr('dominant-baseline', 'middle')
-      .attr('letter-spacing', -1)
-      .style('font-size', 3*this.s.note_size/4)
-      .html(d => (this.s.note_size < this.s.time_scale(d.noteLen)-this.s.time_scale(0)) ? get_note_name(d.note) : '');
+          update.select('text')
+            .html(d => (this.s.note_size < this.s.time_scale(d.noteLen)-this.s.time_scale(0)) ? get_note_name(d.note) : '');
+          return update;
+        }
+      );
 
-    
-  }
+  } 
 
   draw_chord(time, note, semitones) {
     /*
@@ -389,7 +373,6 @@ class MiideaCanvas {
     this.s.note_size = this.s.note_scale(1)-this.s.note_scale(2);
     this.s.time_size = this.s.time_scale(1)-this.s.time_scale(0);
     this.render_base_layer();
-    
     this.render_notes();
     this.svg.classed('rotated', this.p.vert);
     if (this.p.vert) {
@@ -404,22 +387,63 @@ class MiideaCanvas {
     return Math.floor(minutes*(bpm*64/4)) % this.s.time_domain[1];
   }
 
+  update_display() {
+    debug_text += ' update_display ';
+    // Infers the domains (time domain in 1/64 bars and the note domain in notes)
+    // the time domain fits the # of bars with notes in them
+    // the note domain fits based on the notes, in half octaves so it doesn't always change
+    // const inferred_bars = this.notes.length === 0 ? 1 : Math.floor(Math.max(...this.notes.map(n => n.start))/64)+1;
+    const inferred_bars = bars; // NOT INFERRING, JUST SETTING IT
+    let inferred_hoct_range = this.s.half_octave_range; // default for if there are no notes
+    if (this.notes.length > 0) {
+      let note_vals = this.notes.map(n => n.note);
+      //console.log(note_vals, Math.min(...note_vals)-21);
+      inferred_hoct_range = [Math.floor((Math.min(...note_vals)-21)/6), 
+                                   Math.ceil((Math.max(...note_vals)-21)/6)];
+    }
+    // if the layout has changed, we'll re-render
+    //console.log('1', inferred_hoct_range);
+    if (inferred_bars != this.s.bars || 
+        inferred_hoct_range[0] != this.s.half_octave_range[0] || 
+        inferred_hoct_range[1] != this.s.half_octave_range[1]) {
+      //console.log('2');
+      this.s.bars = inferred_bars;
+      this.s.time_domain = [0, 64*this.s.bars];
+      this.s.half_octave_range = inferred_hoct_range;
+      this.s.note_domain = [this.s.half_octave_range[0]*6+18, 
+                            this.s.half_octave_range[1]*6+21];
+      //console.log(this.s.bars, this.s.half_octave_range);
+      //console.log(this.s.time_domain, this.s.note_domain);
+
+      this.render_all();
+    } else {
+      this.render_notes();
+    }
+    // no action if it didn't change the layout
+  }
+
   animate() {
+    if (this.notes.length>0) debug_text += this.notes[this.notes.length-1].note;
     d3.select('#note_debug').html(debug_text);
     debug_text = '';
-    let bars_time = this.s.time_scale(this.get_bars_time(performance.now()));
+    let bars_time = this.get_bars_time(performance.now());
+    let curr_time = this.s.time_scale(bars_time);
     this.time_line
-      .attr('x1', bars_time)
-      .attr('x2', bars_time)
+      .attr('x1', curr_time)
+      .attr('x2', curr_time)
       .style('display', this.s.started ? 'block' : 'none');
     //this.render_notes();
+    
+    // If any notes are in progress, update the display
+    let in_prog = this.notes.filter(n => n.in_progress);
+    for (let note of in_prog) {
+      note.end = bars_time;
+      note.noteLen = bars_time - note.start;
+    }
+    if (in_prog.length > 0) this.update_display();
 
     // https://stackoverflow.com/questions/5911211/settimeout-inside-javascript-class-using-this
-    if (this.notes.length>0) debug_text += this.notes[this.notes.length-1].note;
-    if (this.notes.filter(n => n.noteLen === -1).length > 0) this.infer_params(true);
-    
     requestAnimationFrame(this.animate.bind(this));
-
   }
 
 }
@@ -431,13 +455,14 @@ const onload_action = () => {
       // setting everything up...
       const m = new MiideaCanvas(starting_notes, {}, d3.select('#smi_canvas'));
       m.set_params_from_global();
-      m.infer_params();
+      m.update_display();
+      m.render_all();
       // midi input...
       for (const input of WebMidi.inputs) {
         console.log(input);
         input.addListener("noteon", "all", (event) => {
-          // noteLen === -1 will signify an ongoing note
-          m.notes.push({'note': event.note.number, 'start': m.get_bars_time(event.timestamp), 'noteLen': -1});
+          // in_progress will signify an ongoing note
+          m.notes.push({'note': event.note.number, 'start': m.get_bars_time(event.timestamp), 'noteLen': 0, 'in_progress': true});
           //console.log(m.notes);
           synth.triggerAttack(`${event.note.name}${event.note.octave}`, Tone.now());
         });
@@ -448,6 +473,7 @@ const onload_action = () => {
             if (note_num === m.notes[m.notes.length-1-i].note) {
               m.notes[m.notes.length-1-i].end = m.get_bars_time(event.timestamp);
               m.notes[m.notes.length-1-i].noteLen = m.notes[m.notes.length-1-i].end-m.notes[m.notes.length-1-i].start;
+              m.notes[m.notes.length-1-i].in_progress = false;
               break;
             }
           }
